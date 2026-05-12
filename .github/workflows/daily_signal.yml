@@ -1,0 +1,32 @@
+name: 매일 투자 신호 알람
+
+on:
+  schedule:
+    # 매일 오전 8:30 KST = UTC 23:30 (전날)
+    - cron: '30 23 * * 0-4'   # 일~목 23:30 UTC = 월~금 08:30 KST
+  workflow_dispatch:            # 수동 실행 버튼도 추가
+
+jobs:
+  send-signal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: 패키지 설치
+        run: |
+          pip install finance-datareader ta requests pandas
+
+      - name: 투자 신호 분석 & 텔레그램 전송
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python signal_cloud.py
