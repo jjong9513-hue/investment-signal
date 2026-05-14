@@ -312,22 +312,43 @@ def run():
     msg3 += "\n💡 스윙 목표: 3~10% | 손절: -3~5% 설정 권장"
     send(msg3)
 
-    # ── 메시지4: 전종목 요약표 ──────────────────────────
-    msg4 = f"<b>📋 전종목 프리장 요약</b> ({now_str})\n"
-    msg4 += "━━━━━━━━━━━━━━━━━\n"
+    # ── 메시지4: 전종목 단타 판정 ────────────────────────
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    msg4 = f"<b>⚡ 단타 추천 [{today_str}]  🇺🇸 미국</b>\n\n"
+    for r in sorted(results, key=lambda x: x["ind"]["day_score"] if x["ind"] else 0, reverse=True):
+        if r["ind"] is None:
+            continue
+        d = r["ind"]
+        # 단타 라벨
+        if d["day_score"] >= 70:   lbl = "🔥 단타 강력추천"
+        elif d["day_score"] >= 50: lbl = "⚡ 단타 적합"
+        elif d["day_score"] >= 30: lbl = "👀 단타 관망"
+        else:                      lbl = "😴 단타 부적합"
+        arrow = "▲" if d["pre_chg"] >= 0 else "▼"
+        msg4 += f"{lbl} <b>{r['name']}</b>  ${d['price']:.2f} {arrow}{abs(d['pre_chg']):.1f}%\n"
+        msg4 += f"  변동폭:{d['atr_pct']:.1f}% | 거래량:{d['vol_ratio5']:.1f}배 | RSI:{d['rsi']:.0f}\n"
+        if r["news"]:
+            msg4 += f"  📰 {r['news'][0]}\n"
+        msg4 += "\n"
+    msg4 += "⚡ 손절선 -2~3% 필수! ⚠️ 투자 책임은 본인에게 있습니다."
+    send(msg4)
+
+    # ── 메시지5: 전종목 요약표 ──────────────────────────
+    msg5 = f"<b>📋 전종목 프리장 요약</b> ({now_str})\n"
+    msg5 += "━━━━━━━━━━━━━━━━━\n"
     for r in results:
         if r["ind"] is None:
-            msg4 += f"❓ {r['sym']} {r['name']}: 데이터없음\n"
+            msg5 += f"❓ {r['sym']} {r['name']}: 데이터없음\n"
             continue
         d = r["ind"]
         arrow = "📈" if d["pre_chg"] >= 0 else "📉"
-        msg4 += (f"{arrow} <b>{r['sym']}</b> ${d['price']:.2f}"
+        msg5 += (f"{arrow} <b>{r['sym']}</b> ${d['price']:.2f}"
                  f" ({d['pre_chg']:+.2f}%)"
                  f" | RSI {d['rsi']:.0f}"
                  f" | 거래량 {d['vol_ratio5']:.1f}배"
                  f" | 단타 {d['day_score']}점"
                  f" | 스윙 {d['swing_score']}점\n")
-    send(msg4)
+    send(msg5)
 
     print("=== 전송 완료 ===")
 
