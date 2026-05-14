@@ -1,0 +1,31 @@
+name: 미국장 시작 전 신호
+
+on:
+  schedule:
+    # 매일 오후 9:30 KST = UTC 12:30 (미국 동부 오전 8:30, 장 시작 1시간 전)
+    - cron: '30 12 * * 1-5'   # 월~금 12:30 UTC = 21:30 KST
+  workflow_dispatch:            # 수동 실행 버튼
+
+jobs:
+  us-signal:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 패키지 설치
+        run: |
+          pip install finance-datareader ta requests pandas yfinance
+
+      - name: 미국 프리장 분석 & 텔레그램 전송
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python signal_us_open.py
