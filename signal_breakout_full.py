@@ -247,13 +247,11 @@ def run():
 
     print(f"=== {now_str} 전종목 돌파 스캔 시작 ===")
 
+    # 주말에는 한국장만 스킵, 미국장은 24시간 운영
+    kr_open = (weekday < 5) and is_kr_market_open(now_kst)
     if weekday >= 5:
-        print("주말 - 스킵")
-        return
-
-    kr_open = is_kr_market_open(now_kst)
-    # 미국은 24시간 스캔 (프리마켓/정규/애프터마켓 포함)
-    us_open = True
+        print("주말 - 한국장 스킵 (미국장은 계속 스캔)")
+    us_open = True  # 미국은 24시간 스캔
 
     all_signals = []
 
