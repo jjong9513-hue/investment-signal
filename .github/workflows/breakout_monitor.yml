@@ -1,0 +1,28 @@
+name: 돌파 신호 모니터링
+
+on:
+  workflow_dispatch:  # cron-job.org가 15분마다 외부에서 실행
+
+jobs:
+  breakout-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4.2.2
+
+      - name: Python 설치
+        uses: actions/setup-python@v5.5.0
+        with:
+          python-version: '3.12'
+
+      - name: 패키지 설치
+        run: |
+          pip install yfinance pandas numpy requests
+
+      - name: 돌파 신호 체크 & 텔레그램 전송
+        env:
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python signal_breakout.py
