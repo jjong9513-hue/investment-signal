@@ -1,10 +1,7 @@
 name: 미국장 시작 전 신호
 
 on:
-  schedule:
-    # 매일 오후 9:30 KST = UTC 12:30 (미국 동부 오전 8:30, 장 시작 1시간 전)
-    - cron: '30 12 * * 1-5'   # 월~금 12:30 UTC = 21:30 KST
-  workflow_dispatch:            # 수동 실행 버튼
+  workflow_dispatch:  # cron-job.org가 정확한 시간에 외부에서 실행 (21:30 KST)
 
 jobs:
   us-signal:
