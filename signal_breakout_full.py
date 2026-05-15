@@ -64,10 +64,21 @@ def get_all_tickers():
     try:
         from pykrx import stock as pykrx_stock
         import datetime
-        today = datetime.datetime.now().strftime("%Y%m%d")
+
+        # 마지막 거래일 계산 (주말이면 금요일로)
+        today = datetime.datetime.now()
+        wd = today.weekday()
+        if wd == 5:    # 토요일 → 금요일
+            today -= datetime.timedelta(days=1)
+        elif wd == 6:  # 일요일 → 금요일
+            today -= datetime.timedelta(days=2)
+        date_str = today.strftime("%Y%m%d")
+        print(f"  pykrx 기준일: {date_str}")
 
         # 코스피 상위 40개
-        df_kospi = pykrx_stock.get_market_cap_by_ticker(today, market="KOSPI")
+        df_kospi = pykrx_stock.get_market_cap_by_ticker(date_str, market="KOSPI")
+        if df_kospi is None or df_kospi.empty or "시가총액" not in df_kospi.columns:
+            raise ValueError(f"KOSPI 데이터 없음 (date={date_str})")
         for code in df_kospi.sort_values("시가총액", ascending=False).head(40).index:
             sym  = f"{code}.KS"
             name = pykrx_stock.get_market_ticker_name(code)
@@ -75,7 +86,9 @@ def get_all_tickers():
             kr_names[sym] = name
 
         # 코스닥 상위 10개
-        df_kosdaq = pykrx_stock.get_market_cap_by_ticker(today, market="KOSDAQ")
+        df_kosdaq = pykrx_stock.get_market_cap_by_ticker(date_str, market="KOSDAQ")
+        if df_kosdaq is None or df_kosdaq.empty or "시가총액" not in df_kosdaq.columns:
+            raise ValueError(f"KOSDAQ 데이터 없음 (date={date_str})")
         for code in df_kosdaq.sort_values("시가총액", ascending=False).head(10).index:
             sym  = f"{code}.KQ"
             name = pykrx_stock.get_market_ticker_name(code)
@@ -85,8 +98,13 @@ def get_all_tickers():
         print(f"  한국 종목: {len(kr_tickers)}개 (pykrx 시총 상위)")
     except Exception as e:
         print(f"  ⚠️ pykrx 실패: {e} → 기본 종목 사용")
-        fallback = {"005930.KS":"삼성전자","000660.KS":"SK하이닉스",
-                    "005380.KS":"현대차","035420.KS":"NAVER","051910.KS":"LG화학"}
+        fallback = {
+            "005930.KS":"삼성전자", "000660.KS":"SK하이닉스", "005380.KS":"현대차",
+            "035420.KS":"NAVER",   "051910.KS":"LG화학",     "006400.KS":"삼성SDI",
+            "035720.KS":"카카오",   "003550.KS":"LG",         "028260.KS":"삼성물산",
+            "066570.KS":"LG전자",   "096770.KS":"SK이노베이션","017670.KS":"SK텔레콤",
+            "030200.KS":"KT",       "086790.KS":"하나금융지주","105560.KS":"KB금융",
+        }
         kr_tickers = list(fallback.keys())
         kr_names   = fallback
 
