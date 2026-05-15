@@ -24,11 +24,12 @@ INTERVALS  = ["15m", "30m"]
 BATCH_SIZE = 50    # 한 번에 다운로드할 종목 수
 MAX_ALERTS = 10    # 한 번에 최대 알람 수 (너무 많으면 분할)
 
-# ── 최소 조건 (노이즈 필터) ────────────────────────
-MIN_PRICE_KR = 500       # 최소 주가 (원) - 동전주 제외
-MIN_PRICE_US = 1.0       # 최소 주가 ($) - 페니스톡 제외
-MIN_VOL_KR   = 10000     # 최소 거래량 (한국)
-MIN_VOL_US   = 50000     # 최소 거래량 (미국)
+# ── 최소 조건 (토스증권 거래 가능 종목 기준) ────────────────────────
+# 토스증권은 유동성 있는 종목만 지원 → 거래량/가격 기준으로 필터링
+MIN_PRICE_KR = 1000      # 최소 주가 (원) - 동전주 제외
+MIN_PRICE_US = 5.0       # 최소 주가 ($) - 토스증권 미지원 저가주 제외
+MIN_VOL_KR   = 50000     # 최소 거래량 (한국) - 유동성 확보
+MIN_VOL_US   = 500000    # 최소 거래량 (미국) - 토스증권 거래 가능 수준
 
 def send(msg):
     r = requests.post(
@@ -126,6 +127,25 @@ def get_kosdaq_tickers():
         return tickers, names
     except Exception as e:
         print(f"  KOSDAQ 리스트 오류: {e}")
+        return [], {}
+
+def get_kospi_tickers():
+    """KOSPI 전종목 리스트 가져오기 (토스증권 지원)"""
+    print("KOSPI 종목 리스트 수집중...")
+    try:
+        df = fdr.StockListing('KOSPI')
+        tickers = []
+        names   = {}
+        for _, row in df.iterrows():
+            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
+            name = str(row.get('Name', row.get('ISU_ABBRV', code)))
+            sym  = f"{code}.KS"
+            tickers.append(sym)
+            names[sym] = name
+        print(f"  KOSPI 종목: {len(tickers)}개")
+        return tickers, names
+    except Exception as e:
+        print(f"  KOSPI 리스트 오류: {e}")
         return [], {}
 
 def calc_obv(close, volume):
@@ -278,9 +298,21 @@ def run():
 
     all_signals = []
 
-    # ── KOSDAQ 스캔 (한국장 09:00~15:30만) ──────────────────────────────────
+    # ── KOSPI + KOSDAQ 스캔 (한국장 09:00~15:30만) ──────────────────────────
     if kr_open:
-        print("\n[KOSDAQ 전종목 스캔]")
+        print("\n[KOSPI 전종목 스캔] (토스증권 지원)")
+        kospi_tickers, kospi_names = get_kospi_tickers()
+        for interval in INTERVALS:
+            print(f"  {interval}봉 체크중...")
+            for i in range(0, len(kospi_tickers), BATCH_SIZE):
+                batch = kospi_tickers[i:i+BATCH_SIZE]
+                sigs  = check_batch(batch, "KR", kospi_names, interval)
+                if sigs:
+                    all_signals.extend(sigs)
+                    print(f"    신호: {[s['name'] for s in sigs]}")
+                time.sleep(0.5)
+
+        print("\n[KOSDAQ 전종목 스캔] (토스증권 지원)")
         kosdaq_tickers, kosdaq_names = get_kosdaq_tickers()
         for interval in INTERVALS:
             print(f"  {interval}봉 체크중...")
@@ -292,7 +324,7 @@ def run():
                     print(f"    신호: {[s['name'] for s in sigs]}")
                 time.sleep(0.5)
     else:
-        print("\n[KOSDAQ] 장외시간 스킵 (09:00~15:30만 운영)")
+        print("\n[한국장] 장외시간 스킵 (09:00~15:30만 운영)")
 
     # ── NASDAQ 스캔 (24시간 - 프리마켓/정규/애프터마켓) ──────────────────────────────────
     print("\n[NASDAQ 전종목 스캔] (24시간)")
