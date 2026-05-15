@@ -160,43 +160,66 @@ def check_batch(tickers, market, name_map=None, interval="15m"):
                 if cur_price < MIN_PRICE_US or cur_vol < MIN_VOL_US:
                     continue
 
-            # ── 조건 1: 현재가 > 이전 15봉 최고가 (신규 돌파) ──
-            prev_15_high    = float(high.iloc[-(LOOKBACK+1):-1].max())
-            prev_prev_close = float(close.iloc[-2])
-            cond1 = cur_price > prev_15_high
-            new_break = prev_prev_close <= float(high.iloc[-(LOOKBACK+2):-2].max()) if len(high) > LOOKBACK+2 else True
+            # ── OBV / 거래량MA / SMA / RSI 계산 ──
+            obv     = calc_obv(close, volume)
+            obv_ema = obv.ewm(span=OBV_PERIOD, adjust=False).mean()
+            vol_ma  = volume.rolling(LOOKBACK).mean()
+            sma     = close.rolling(LOOKBACK).mean()
 
-            if not (cond1 and new_break):
+            # RSI(14)
+            delta = close.diff()
+            gain  = delta.clip(lower=0).rolling(14).mean()
+            loss  = (-delta.clip(upper=0)).rolling(14).mean()
+            rsi   = 100 - (100 / (1 + gain / loss.replace(0, np.nan)))
+
+            # ── 조건 1: crossover(close, highest(high[1], lookback)) ──
+            # high[1] = 1봉 전부터 lookback개 봉의 최고가 (현재봉 제외)
+            prev_high_max  = high.shift(1).rolling(LOOKBACK).max()
+            cur_prev_high  = float(prev_high_max.iloc[-1])   # 현재봉 기준 이전 최고가
+            prev_prev_high = float(prev_high_max.iloc[-2])   # 1봉 전 기준 이전 최고가
+            prev_close     = float(close.iloc[-2])
+
+            # crossover = 현재봉 close가 위로 교차 (이전봉은 아래였음)
+            cond1 = (cur_price > cur_prev_high) and (prev_close <= prev_prev_high)
+
+            if not cond1:
                 continue
 
-            # ── 조건 2: 현재 거래량 > 15봉 평균 × 1.5 ──
-            avg_vol   = float(volume.iloc[-(LOOKBACK+1):-1].mean())
+            # ── 조건 2: volume > vol_ma * vol_multiplier ──
+            avg_vol   = float(vol_ma.iloc[-1])
             vol_ratio = cur_vol / avg_vol if avg_vol > 0 else 0
-            cond2 = vol_ratio > VOL_MULT
+            cond2     = vol_ratio > VOL_MULT
 
             if not cond2:
                 continue
 
             # ── 조건 3: OBV > OBV EMA ──
-            obv     = calc_obv(close, volume)
-            obv_ema = obv.ewm(span=OBV_PERIOD, adjust=False).mean()
-            cond3   = float(obv.iloc[-1]) > float(obv_ema.iloc[-1])
+            cond3 = float(obv.iloc[-1]) > float(obv_ema.iloc[-1])
 
             if not cond3:
                 continue
 
-            # ── 3개 모두 충족! ──
+            # ── 매집 구간 체크 (추가 정보) ──
+            obv_rising = all(obv.iloc[-i] > obv.iloc[-i-1] for i in range(1, 4))
+            highest_lb = float(high.iloc[-LOOKBACK:].max())
+            is_accum   = obv_rising and cur_price < highest_lb * 0.99
+
+            cur_rsi = float(rsi.iloc[-1]) if not np.isnan(float(rsi.iloc[-1])) else 0
+
+            # ── 3개 조건 모두 충족! ──
             name = name_map.get(sym, sym) if name_map else sym
             signals.append({
-                "sym":       sym,
-                "name":      name,
-                "market":    market,
-                "interval":  interval,
-                "price":     cur_price,
-                "high_15":   prev_15_high,
-                "vol_ratio": vol_ratio,
-                "obv":       float(obv.iloc[-1]),
-                "obv_ema":   float(obv_ema.iloc[-1]),
+                "sym":          sym,
+                "name":         name,
+                "market":       market,
+                "interval":     interval,
+                "price":        cur_price,
+                "high_15":      cur_prev_high,
+                "vol_ratio":    vol_ratio,
+                "obv":          float(obv.iloc[-1]),
+                "obv_ema":      float(obv_ema.iloc[-1]),
+                "rsi":          cur_rsi,
+                "is_accum":     is_accum,
             })
 
         except Exception:
@@ -217,11 +240,13 @@ def send_alerts(signals, interval, now_str):
             flag  = flag_map.get(s["market"], "")
             price = f"{s['price']:,.0f}원" if s["market"] == "KR" else f"${s['price']:.2f}"
             high  = f"{s['high_15']:,.0f}원" if s["market"] == "KR" else f"${s['high_15']:.2f}"
-            msg  += f"{flag} <b>{s['name']}</b> ({s['sym']})\n"
+            accum = "🟢 매집구간" if s.get("is_accum") else ""
+            msg  += f"{flag} <b>{s['name']}</b> ({s['sym']}) {accum}\n"
             msg  += f"  현재가: <b>{price}</b>\n"
-            msg  += f"  ✅ 가격돌파: {price} > {high}\n"
-            msg  += f"  ✅ 거래량:   {s['vol_ratio']:.2f}배 (기준 {VOL_MULT}배)\n"
-            msg  += f"  ✅ OBV:      EMA 상회 중\n\n"
+            msg  += f"  ✅ 돌파: {price} ↑ {high} (15봉 최고가)\n"
+            msg  += f"  ✅ 거래량: {s['vol_ratio']:.1f}배↑ (기준 {VOL_MULT}배)\n"
+            msg  += f"  ✅ OBV: EMA 상회\n"
+            msg  += f"  📊 RSI: {s.get('rsi', 0):.1f}\n\n"
 
         msg += "⚡ 손절선 설정 필수! ⚠️ 투자 책임은 본인에게 있습니다."
         ok = send(msg)
