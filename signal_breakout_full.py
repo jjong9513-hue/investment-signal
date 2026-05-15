@@ -40,73 +40,39 @@ def send(msg):
     return r.status_code == 200
 
 def get_nasdaq_tickers():
-    """토스증권 거래 가능 미국 주요 종목 리스트 (S&P500 + 나스닥100 중심)"""
-    print("미국 주요 종목 리스트 수집중...")
-
-    # 방법 1: S&P500 리스트 (500개, 모두 토스증권 지원)
-    try:
-        df = fdr.StockListing('S&P500')
-        tickers = []
-        for _, row in df.iterrows():
-            sym = str(row.get('Symbol', row.get('Code', ''))).strip()
-            if sym and re.match(r'^[A-Z]{1,5}$', sym):
-                tickers.append(sym)
-        if len(tickers) > 100:
-            print(f"  S&P500 종목: {len(tickers)}개")
-            return tickers
-    except Exception as e:
-        print(f"  S&P500 오류: {e}")
-
-    # 방법 2: 나스닥100 리스트
-    try:
-        df = fdr.StockListing('NASDAQ100')
-        tickers = []
-        for _, row in df.iterrows():
-            sym = str(row.get('Symbol', row.get('Code', ''))).strip()
-            if sym and re.match(r'^[A-Z]{1,5}$', sym):
-                tickers.append(sym)
-        if len(tickers) > 50:
-            print(f"  NASDAQ100 종목: {len(tickers)}개")
-            return tickers
-    except Exception as e:
-        print(f"  NASDAQ100 오류: {e}")
-
-    # 최후 백업: 토스증권 주요 종목 300개
-    print("  ⚠️ 백업 종목 리스트 사용")
-    return [
-        # 빅테크/반도체
-        "NVDA","TSLA","META","AAPL","AMD","MSFT","GOOGL","GOOG","AMZN","NFLX",
-        "INTC","QCOM","AVGO","MU","AMAT","LRCX","KLAC","MRVL","SNPS","CDNS",
-        "TSM","ASML","ARM","SMCI","DELL","HPQ","HPE","IBM","ORCL","SAP",
-        # 핀테크/금융
-        "HOOD","COIN","SOFI","UPST","AFRM","SQ","PYPL","V","MA","AXP",
-        "GS","MS","JPM","BAC","WFC","C","BLK","SCHW","IBKR","CME",
-        "MSTR","MARA","RIOT","CLSK","HUT","BITF","IREN","CIFR","BTBT","WULF",
-        # 헬스케어/바이오
-        "MRNA","BNTX","NVAX","VRTX","REGN","BIIB","GILD","AMGN","ABBV","LLY",
-        "PFE","JNJ","MRK","BMY","ISRG","DXCM","IDXX","VEEV","ILMN","PACB",
-        "RXRX","BEAM","CRSP","NTLA","EDIT","BLUE","FATE","KYMR","PTGX","ALNY",
-        # 클라우드/SaaS
-        "CRWD","PANW","ZS","OKTA","NET","SNOW","DDOG","MDB","GTLB","HUBS",
-        "CRM","NOW","WDAY","TEAM","ZM","DOCN","TWLO","ESTC","CFLT","BILL",
-        "SMAR","BOX","EVBG","NCNO","BRZE","SUMO","JAMF","DOCU","COUP","APPF",
-        # 소비재/이커머스
-        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","AIRB","YELP","OPEN","RDFN",
-        "LULU","NKE","UAA","SKX","CROX","ONON","DECK","TPR","CPRI","VFC",
-        "COST","WMT","TGT","HD","LOW","TSCO","DG","DLTR","KR","SFM",
-        # 에너지/친환경
-        "ENPH","FSLR","RUN","PLUG","BE","NOVA","ARRY","MAXN","CSIQ","JKS",
-        "NEE","AES","CEG","VST","NRG","ETR","EXC","PPL","AEP","XEL",
-        # 미디어/엔터
-        "DIS","NFLX","PARA","WBD","SPOT","SNAP","PINS","RBLX","U","EA",
-        "TTWO","ATVI","BILI","IQ","TME","DOYU","HUYA","NTES","BIDU","PDD",
-        # 항공우주/방산
-        "RKLB","LUNR","JOBY","ACHR","LILM","JOBY","EVTL","ARCHER","SPCE","RDW",
-        "LMT","RTX","NOC","GD","BA","HII","L3H","KTOS","PLTR","BWXT",
-        # 양자컴퓨팅/AI
-        "IONQ","RGTI","QUBT","QBTS","ARQQ","IBM","MSFT","GOOGL","AMZN","NVDA",
-        "SOUN","BBAI","AITX","GFAI","AIOT","AIXI","BTAI","PALI","SINT","TPVG",
+    """토스증권 거래 가능 미국 주요 종목 (하드코딩 - rate limit 방지)"""
+    tickers = [
+        # ── 나스닥100 핵심 ──────────────────────────────────────────
+        "AAPL","MSFT","NVDA","AMZN","META","GOOGL","GOOG","TSLA","AVGO","COST",
+        "NFLX","AMD","QCOM","TMUS","AMAT","CSCO","INTU","ISRG","TXN","BKNG",
+        "AMGN","PEP","HON","VRTX","PANW","ADP","SBUX","GILD","REGN","MDLZ",
+        "CRWD","LRCX","KLAC","SNPS","CDNS","MELI","ASML","CTAS","MAR","ORLY",
+        "PCAR","FTNT","MNST","ROST","CPRT","WDAY","DXCM","FAST","ODFL","DDOG",
+        "ZS","MRVL","KDP","VRSK","EA","GEHC","IDXX","FANG","EXC","XEL",
+        "TEAM","ANSS","BIIB","DLTR","CTSH","WBD","SIRI","ULTA","MTCH","ZM",
+        # ── S&P500 대형주 ───────────────────────────────────────────
+        "JPM","V","MA","UNH","JNJ","XOM","CVX","PG","HD","BAC",
+        "LLY","MRK","ABBV","KO","PFE","TMO","WMT","MCD","CRM","ORCL",
+        "ACN","IBM","GE","NOW","TJX","UBER","GS","MS","BLK","SPGI",
+        "RTX","CAT","AXP","SCHW","C","WFC","USB","PNC","TFC","COF",
+        "LMT","NOC","GD","BA","DE","CMI","EMR","ITW","MMM","ETN",
+        "PYPL","SQ","AFRM","SOFI","COIN","HOOD","MSTR","PLTR","SNOW","MDB",
+        # ── 테마주/성장주 ───────────────────────────────────────────
+        "RKLB","IONQ","RGTI","QUBT","SOUN","ARM","SMCI","TSM","MU","INTC",
+        "MARA","RIOT","HUT","BITF","CLSK","IREN","WULF","BTBT","CIFR","CORZ",
+        "MRNA","BNTX","NVAX","RXRX","BEAM","CRSP","ALNY","VRTX","ILMN","PACB",
+        "NET","OKTA","TWLO","GTLB","BILL","DOCN","CFLT","HUBS","BRZE","ESTC",
+        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","YELP","OPEN","RDFN","TRIP",
+        "ENPH","FSLR","RUN","PLUG","BE","NOVA","NEE","CEG","VST","NRG",
+        "LULU","NKE","CROX","ONON","DECK","UAA","SKX","COST","TGT","WMT",
+        "DIS","SPOT","SNAP","PINS","RBLX","TTWO","EA","NTES","BIDU","PDD",
+        "JOBY","ACHR","LILM","SPCE","LUNR","KTOS","AXON","BWXT","LHX","HII",
+        "UPST","LC","OPFI","DAVE","MQ","FOUR","FLYW","PAYO","AFRM","SOFI",
     ]
+    # 중복 제거
+    tickers = list(dict.fromkeys(tickers))
+    print(f"  미국 주요 종목: {len(tickers)}개 (하드코딩)")
+    return tickers
 
 def get_kosdaq_tickers():
     """KOSDAQ 전종목 리스트 가져오기"""
