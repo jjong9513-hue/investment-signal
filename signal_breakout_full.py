@@ -5,7 +5,7 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import requests, os, sys, time
+import requests, os, sys, time, re
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import FinanceDataReader as fdr
@@ -41,22 +41,72 @@ def send(msg):
 def get_nasdaq_tickers():
     """NASDAQ 전종목 리스트 가져오기"""
     print("NASDAQ 종목 리스트 수집중...")
+
+    # 방법 1: FinanceDataReader (KOSDAQ과 동일한 방식)
     try:
-        # NASDAQ FTP에서 전종목 리스트
-        url = "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-        df = pd.read_csv(url, sep="|")
-        # 마지막 행(파일 생성일)과 ETF 제외
-        df = df[df["Market Category"] != ""].copy()
-        df = df[df["Symbol"].str.match(r'^[A-Z]+$')]  # 순수 알파벳 티커만
-        df = df[df["ETF"] != "Y"]  # ETF 제외
-        tickers = df["Symbol"].tolist()
-        print(f"  NASDAQ 종목: {len(tickers)}개")
-        return tickers
+        df = fdr.StockListing('NASDAQ')
+        tickers = []
+        for _, row in df.iterrows():
+            sym = str(row.get('Symbol', row.get('Code', ''))).strip()
+            if sym and re.match(r'^[A-Z]{1,5}$', sym):
+                tickers.append(sym)
+        if len(tickers) > 100:
+            print(f"  NASDAQ 종목 (FDR): {len(tickers)}개")
+            return tickers
+        else:
+            raise ValueError(f"종목 수 부족: {len(tickers)}개")
     except Exception as e:
-        print(f"  NASDAQ 리스트 오류: {e}")
-        # 백업: 주요 종목만
-        return ["NVDA","TSLA","META","AAPL","AMD","MSTR","SMCI","RIOT","SOUN","RKLB",
-                "MSFT","GOOGL","AMZN","NFLX","INTC","QCOM","AVGO","MU","AMAT","LRCX"]
+        print(f"  FDR 오류: {e}")
+
+    # 방법 2: NASDAQ FTP (타임아웃 10초)
+    try:
+        import urllib.request
+        url = "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            content = resp.read().decode('utf-8')
+        import io
+        df = pd.read_csv(io.StringIO(content), sep="|")
+        df = df[df["Market Category"] != ""].copy()
+        df = df[df["Symbol"].str.match(r'^[A-Z]+$', na=False)]
+        df = df[df["ETF"] != "Y"]
+        tickers = df["Symbol"].tolist()
+        if len(tickers) > 100:
+            print(f"  NASDAQ 종목 (FTP): {len(tickers)}개")
+            return tickers
+        else:
+            raise ValueError(f"종목 수 부족: {len(tickers)}개")
+    except Exception as e:
+        print(f"  FTP 오류: {e}")
+
+    # 방법 3: GitHub 호스팅 CSV
+    try:
+        url = "https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/nasdaq/nasdaq_tickers.txt"
+        df = pd.read_csv(url, header=None, names=["Symbol"])
+        tickers = [s.strip() for s in df["Symbol"].tolist()
+                   if re.match(r'^[A-Z]{1,5}$', str(s).strip())]
+        if len(tickers) > 100:
+            print(f"  NASDAQ 종목 (GitHub CSV): {len(tickers)}개")
+            return tickers
+        else:
+            raise ValueError(f"종목 수 부족: {len(tickers)}개")
+    except Exception as e:
+        print(f"  GitHub CSV 오류: {e}")
+
+    # 최후 백업: S&P500 + 주요 NASDAQ 종목
+    print("  ⚠️ 모든 방법 실패 - 주요 종목 100개로 대체")
+    return [
+        "NVDA","TSLA","META","AAPL","AMD","MSTR","SMCI","RIOT","SOUN","RKLB",
+        "MSFT","GOOGL","AMZN","NFLX","INTC","QCOM","AVGO","MU","AMAT","LRCX",
+        "PLTR","ARM","HOOD","COIN","MARA","CLSK","CIFR","IREN","BITF","HUT",
+        "IONQ","RGTI","QUBT","QBTS","ARQQ","LUNR","RCAT","JOBY","ACHR","LILM",
+        "CRWD","PANW","ZS","OKTA","NET","SNOW","DDOG","MDB","GTLB","HUBS",
+        "CELH","SMST","AXON","ONON","DECK","LULU","NKE","UAA","SKX","CROX",
+        "ENPH","FSLR","SEDG","CSIQ","RUN","PLUG","BLDP","FCEL","BE","NOVA",
+        "MRNA","BNTX","NVAX","VRTX","REGN","BIIB","ILMN","PACB","RXRX","BEAM",
+        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","TRIP","PCLN","OPEN","RDFN",
+        "SOFI","UPST","AFRM","LC","OPFI","DAVE","MQ","PAYO","FOUR","FLYW"
+    ]
 
 def get_kosdaq_tickers():
     """KOSDAQ 전종목 리스트 가져오기"""
