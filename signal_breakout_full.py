@@ -40,73 +40,72 @@ def send(msg):
     return r.status_code == 200
 
 def get_nasdaq_tickers():
-    """NASDAQ 전종목 리스트 가져오기"""
-    print("NASDAQ 종목 리스트 수집중...")
+    """토스증권 거래 가능 미국 주요 종목 리스트 (S&P500 + 나스닥100 중심)"""
+    print("미국 주요 종목 리스트 수집중...")
 
-    # 방법 1: FinanceDataReader (KOSDAQ과 동일한 방식)
+    # 방법 1: S&P500 리스트 (500개, 모두 토스증권 지원)
     try:
-        df = fdr.StockListing('NASDAQ')
+        df = fdr.StockListing('S&P500')
         tickers = []
         for _, row in df.iterrows():
             sym = str(row.get('Symbol', row.get('Code', ''))).strip()
             if sym and re.match(r'^[A-Z]{1,5}$', sym):
                 tickers.append(sym)
         if len(tickers) > 100:
-            print(f"  NASDAQ 종목 (FDR): {len(tickers)}개")
+            print(f"  S&P500 종목: {len(tickers)}개")
             return tickers
-        else:
-            raise ValueError(f"종목 수 부족: {len(tickers)}개")
     except Exception as e:
-        print(f"  FDR 오류: {e}")
+        print(f"  S&P500 오류: {e}")
 
-    # 방법 2: NASDAQ FTP (타임아웃 10초)
+    # 방법 2: 나스닥100 리스트
     try:
-        import urllib.request
-        url = "https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqlisted.txt"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            content = resp.read().decode('utf-8')
-        import io
-        df = pd.read_csv(io.StringIO(content), sep="|")
-        df = df[df["Market Category"] != ""].copy()
-        df = df[df["Symbol"].str.match(r'^[A-Z]+$', na=False)]
-        df = df[df["ETF"] != "Y"]
-        tickers = df["Symbol"].tolist()
-        if len(tickers) > 100:
-            print(f"  NASDAQ 종목 (FTP): {len(tickers)}개")
+        df = fdr.StockListing('NASDAQ100')
+        tickers = []
+        for _, row in df.iterrows():
+            sym = str(row.get('Symbol', row.get('Code', ''))).strip()
+            if sym and re.match(r'^[A-Z]{1,5}$', sym):
+                tickers.append(sym)
+        if len(tickers) > 50:
+            print(f"  NASDAQ100 종목: {len(tickers)}개")
             return tickers
-        else:
-            raise ValueError(f"종목 수 부족: {len(tickers)}개")
     except Exception as e:
-        print(f"  FTP 오류: {e}")
+        print(f"  NASDAQ100 오류: {e}")
 
-    # 방법 3: GitHub 호스팅 CSV
-    try:
-        url = "https://raw.githubusercontent.com/rreichel3/US-Stock-Symbols/main/nasdaq/nasdaq_tickers.txt"
-        df = pd.read_csv(url, header=None, names=["Symbol"])
-        tickers = [s.strip() for s in df["Symbol"].tolist()
-                   if re.match(r'^[A-Z]{1,5}$', str(s).strip())]
-        if len(tickers) > 100:
-            print(f"  NASDAQ 종목 (GitHub CSV): {len(tickers)}개")
-            return tickers
-        else:
-            raise ValueError(f"종목 수 부족: {len(tickers)}개")
-    except Exception as e:
-        print(f"  GitHub CSV 오류: {e}")
-
-    # 최후 백업: S&P500 + 주요 NASDAQ 종목
-    print("  ⚠️ 모든 방법 실패 - 주요 종목 100개로 대체")
+    # 최후 백업: 토스증권 주요 종목 300개
+    print("  ⚠️ 백업 종목 리스트 사용")
     return [
-        "NVDA","TSLA","META","AAPL","AMD","MSTR","SMCI","RIOT","SOUN","RKLB",
-        "MSFT","GOOGL","AMZN","NFLX","INTC","QCOM","AVGO","MU","AMAT","LRCX",
-        "PLTR","ARM","HOOD","COIN","MARA","CLSK","CIFR","IREN","BITF","HUT",
-        "IONQ","RGTI","QUBT","QBTS","ARQQ","LUNR","RCAT","JOBY","ACHR","LILM",
+        # 빅테크/반도체
+        "NVDA","TSLA","META","AAPL","AMD","MSFT","GOOGL","GOOG","AMZN","NFLX",
+        "INTC","QCOM","AVGO","MU","AMAT","LRCX","KLAC","MRVL","SNPS","CDNS",
+        "TSM","ASML","ARM","SMCI","DELL","HPQ","HPE","IBM","ORCL","SAP",
+        # 핀테크/금융
+        "HOOD","COIN","SOFI","UPST","AFRM","SQ","PYPL","V","MA","AXP",
+        "GS","MS","JPM","BAC","WFC","C","BLK","SCHW","IBKR","CME",
+        "MSTR","MARA","RIOT","CLSK","HUT","BITF","IREN","CIFR","BTBT","WULF",
+        # 헬스케어/바이오
+        "MRNA","BNTX","NVAX","VRTX","REGN","BIIB","GILD","AMGN","ABBV","LLY",
+        "PFE","JNJ","MRK","BMY","ISRG","DXCM","IDXX","VEEV","ILMN","PACB",
+        "RXRX","BEAM","CRSP","NTLA","EDIT","BLUE","FATE","KYMR","PTGX","ALNY",
+        # 클라우드/SaaS
         "CRWD","PANW","ZS","OKTA","NET","SNOW","DDOG","MDB","GTLB","HUBS",
-        "CELH","SMST","AXON","ONON","DECK","LULU","NKE","UAA","SKX","CROX",
-        "ENPH","FSLR","SEDG","CSIQ","RUN","PLUG","BLDP","FCEL","BE","NOVA",
-        "MRNA","BNTX","NVAX","VRTX","REGN","BIIB","ILMN","PACB","RXRX","BEAM",
-        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","TRIP","PCLN","OPEN","RDFN",
-        "SOFI","UPST","AFRM","LC","OPFI","DAVE","MQ","PAYO","FOUR","FLYW"
+        "CRM","NOW","WDAY","TEAM","ZM","DOCN","TWLO","ESTC","CFLT","BILL",
+        "SMAR","BOX","EVBG","NCNO","BRZE","SUMO","JAMF","DOCU","COUP","APPF",
+        # 소비재/이커머스
+        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","AIRB","YELP","OPEN","RDFN",
+        "LULU","NKE","UAA","SKX","CROX","ONON","DECK","TPR","CPRI","VFC",
+        "COST","WMT","TGT","HD","LOW","TSCO","DG","DLTR","KR","SFM",
+        # 에너지/친환경
+        "ENPH","FSLR","RUN","PLUG","BE","NOVA","ARRY","MAXN","CSIQ","JKS",
+        "NEE","AES","CEG","VST","NRG","ETR","EXC","PPL","AEP","XEL",
+        # 미디어/엔터
+        "DIS","NFLX","PARA","WBD","SPOT","SNAP","PINS","RBLX","U","EA",
+        "TTWO","ATVI","BILI","IQ","TME","DOYU","HUYA","NTES","BIDU","PDD",
+        # 항공우주/방산
+        "RKLB","LUNR","JOBY","ACHR","LILM","JOBY","EVTL","ARCHER","SPCE","RDW",
+        "LMT","RTX","NOC","GD","BA","HII","L3H","KTOS","PLTR","BWXT",
+        # 양자컴퓨팅/AI
+        "IONQ","RGTI","QUBT","QBTS","ARQQ","IBM","MSFT","GOOGL","AMZN","NVDA",
+        "SOUN","BBAI","AITX","GFAI","AIOT","AIXI","BTAI","PALI","SINT","TPVG",
     ]
 
 def get_kosdaq_tickers():
