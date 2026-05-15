@@ -40,38 +40,45 @@ def send(msg):
     return r.status_code == 200
 
 def get_nasdaq_tickers():
-    """토스증권 거래 가능 미국 주요 종목 (하드코딩 - rate limit 방지)"""
+    """토스증권 거래 가능 미국 주요 종목 (현재 상장 확인된 종목만)"""
     tickers = [
-        # ── 나스닥100 핵심 ──────────────────────────────────────────
+        # ── 나스닥100 (현재 상장 확인) ─────────────────────────────
         "AAPL","MSFT","NVDA","AMZN","META","GOOGL","GOOG","TSLA","AVGO","COST",
         "NFLX","AMD","QCOM","TMUS","AMAT","CSCO","INTU","ISRG","TXN","BKNG",
         "AMGN","PEP","HON","VRTX","PANW","ADP","SBUX","GILD","REGN","MDLZ",
         "CRWD","LRCX","KLAC","SNPS","CDNS","MELI","ASML","CTAS","MAR","ORLY",
         "PCAR","FTNT","MNST","ROST","CPRT","WDAY","DXCM","FAST","ODFL","DDOG",
         "ZS","MRVL","KDP","VRSK","EA","GEHC","IDXX","FANG","EXC","XEL",
-        "TEAM","ANSS","BIIB","DLTR","CTSH","WBD","SIRI","ULTA","MTCH","ZM",
+        "TEAM","BIIB","DLTR","CTSH","ULTA","MTCH","ZM","WBD","SIRI",
         # ── S&P500 대형주 ───────────────────────────────────────────
         "JPM","V","MA","UNH","JNJ","XOM","CVX","PG","HD","BAC",
         "LLY","MRK","ABBV","KO","PFE","TMO","WMT","MCD","CRM","ORCL",
         "ACN","IBM","GE","NOW","TJX","UBER","GS","MS","BLK","SPGI",
         "RTX","CAT","AXP","SCHW","C","WFC","USB","PNC","TFC","COF",
         "LMT","NOC","GD","BA","DE","CMI","EMR","ITW","MMM","ETN",
+        # ── 핀테크/크립토 (현재 상장) ──────────────────────────────
         "PYPL","SQ","AFRM","SOFI","COIN","HOOD","MSTR","PLTR","SNOW","MDB",
-        # ── 테마주/성장주 ───────────────────────────────────────────
-        "RKLB","IONQ","RGTI","QUBT","SOUN","ARM","SMCI","TSM","MU","INTC",
-        "MARA","RIOT","HUT","BITF","CLSK","IREN","WULF","BTBT","CIFR","CORZ",
-        "MRNA","BNTX","NVAX","RXRX","BEAM","CRSP","ALNY","VRTX","ILMN","PACB",
-        "NET","OKTA","TWLO","GTLB","BILL","DOCN","CFLT","HUBS","BRZE","ESTC",
-        "UBER","LYFT","DASH","ABNB","BKNG","EXPE","YELP","OPEN","RDFN","TRIP",
-        "ENPH","FSLR","RUN","PLUG","BE","NOVA","NEE","CEG","VST","NRG",
-        "LULU","NKE","CROX","ONON","DECK","UAA","SKX","COST","TGT","WMT",
-        "DIS","SPOT","SNAP","PINS","RBLX","TTWO","EA","NTES","BIDU","PDD",
-        "JOBY","ACHR","LILM","SPCE","LUNR","KTOS","AXON","BWXT","LHX","HII",
-        "UPST","LC","OPFI","DAVE","MQ","FOUR","FLYW","PAYO","AFRM","SOFI",
+        "UPST","LC","MQ","FOUR","PAYO",
+        # ── 반도체/AI/양자 ──────────────────────────────────────────
+        "ARM","SMCI","TSM","MU","INTC","SOUN","IONQ","RGTI","QUBT","QBTS",
+        # ── 크립토 채굴 (현재 상장) ────────────────────────────────
+        "MARA","RIOT","CLSK","HUT","WULF","CORZ","IREN","CIFR",
+        # ── 바이오/헬스 ─────────────────────────────────────────────
+        "MRNA","BNTX","NVAX","RXRX","BEAM","CRSP","ALNY","ILMN","PACB",
+        # ── 클라우드/SaaS ───────────────────────────────────────────
+        "NET","OKTA","TWLO","GTLB","BILL","DOCN","HUBS","BRZE","ESTC",
+        # ── 소비재/이커머스 ─────────────────────────────────────────
+        "LYFT","DASH","ABNB","EXPE","YELP","OPEN","TRIP",
+        "LULU","NKE","CROX","ONON","DECK","UAA",
+        # ── 에너지 ──────────────────────────────────────────────────
+        "ENPH","FSLR","RUN","PLUG","BE","NEE","CEG","VST","NRG",
+        # ── 미디어/엔터 ─────────────────────────────────────────────
+        "DIS","SPOT","SNAP","PINS","RBLX","TTWO","NTES","BIDU","PDD",
+        # ── 우주/방산 ───────────────────────────────────────────────
+        "RKLB","JOBY","ACHR","LUNR","KTOS","AXON","BWXT","LHX","HII",
     ]
-    # 중복 제거
     tickers = list(dict.fromkeys(tickers))
-    print(f"  미국 주요 종목: {len(tickers)}개 (하드코딩)")
+    print(f"  미국 주요 종목: {len(tickers)}개 (상장 확인된 종목)")
     return tickers
 
 def get_kosdaq_tickers():
