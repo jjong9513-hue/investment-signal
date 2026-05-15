@@ -8,7 +8,6 @@ import numpy as np
 import requests, os, sys, time, re
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import FinanceDataReader as fdr
 
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -39,86 +38,59 @@ def send(msg):
     )
     return r.status_code == 200
 
-def get_nasdaq_tickers():
-    """토스증권 거래 가능 미국 주요 종목 (현재 상장 확인된 종목만)"""
-    tickers = [
-        # ── 나스닥100 (현재 상장 확인) ─────────────────────────────
+def get_all_tickers():
+    """미국 + 한국 종목 통합 반환 (us_tickers, kr_tickers, kr_names)"""
+
+    # ── 미국 종목 (검증된 핵심 종목) ─────────────────────────────
+    usa_tickers = [
         "AAPL","MSFT","NVDA","AMZN","META","GOOGL","GOOG","TSLA","AVGO","COST",
-        "NFLX","AMD","QCOM","TMUS","AMAT","CSCO","INTU","ISRG","TXN","BKNG",
-        "AMGN","PEP","HON","VRTX","PANW","ADP","SBUX","GILD","REGN","MDLZ",
-        "CRWD","LRCX","KLAC","SNPS","CDNS","MELI","ASML","CTAS","MAR","ORLY",
-        "PCAR","FTNT","MNST","ROST","CPRT","WDAY","DXCM","FAST","ODFL","DDOG",
-        "ZS","MRVL","KDP","VRSK","EA","GEHC","IDXX","FANG","EXC","XEL",
-        "TEAM","BIIB","DLTR","CTSH","ULTA","MTCH","ZM","WBD","SIRI",
-        # ── S&P500 대형주 ───────────────────────────────────────────
-        "JPM","V","MA","UNH","JNJ","XOM","CVX","PG","HD","BAC",
-        "LLY","MRK","ABBV","KO","PFE","TMO","WMT","MCD","CRM","ORCL",
-        "ACN","IBM","GE","NOW","TJX","UBER","GS","MS","BLK","SPGI",
-        "RTX","CAT","AXP","SCHW","C","WFC","USB","PNC","TFC","COF",
-        "LMT","NOC","GD","BA","DE","CMI","EMR","ITW","MMM","ETN",
-        # ── 핀테크/크립토 (현재 상장) ──────────────────────────────
-        "PYPL","SQ","AFRM","SOFI","COIN","HOOD","MSTR","PLTR","SNOW","MDB",
-        "UPST","LC","MQ","FOUR","PAYO",
-        # ── 반도체/AI/양자 ──────────────────────────────────────────
-        "ARM","SMCI","TSM","MU","INTC","SOUN","IONQ","RGTI","QUBT","QBTS",
-        # ── 크립토 채굴 (현재 상장) ────────────────────────────────
-        "MARA","RIOT","CLSK","HUT","WULF","CORZ","IREN","CIFR",
-        # ── 바이오/헬스 ─────────────────────────────────────────────
-        "MRNA","BNTX","NVAX","RXRX","BEAM","CRSP","ALNY","ILMN","PACB",
-        # ── 클라우드/SaaS ───────────────────────────────────────────
-        "NET","OKTA","TWLO","GTLB","BILL","DOCN","HUBS","BRZE","ESTC",
-        # ── 소비재/이커머스 ─────────────────────────────────────────
-        "LYFT","DASH","ABNB","EXPE","YELP","OPEN","TRIP",
-        "LULU","NKE","CROX","ONON","DECK","UAA",
-        # ── 에너지 ──────────────────────────────────────────────────
-        "ENPH","FSLR","RUN","PLUG","BE","NEE","CEG","VST","NRG",
-        # ── 미디어/엔터 ─────────────────────────────────────────────
-        "DIS","SPOT","SNAP","PINS","RBLX","TTWO","NTES","BIDU","PDD",
-        # ── 우주/방산 ───────────────────────────────────────────────
-        "RKLB","JOBY","ACHR","LUNR","KTOS","AXON","BWXT","LHX","HII",
+        "NFLX","AMD","QCOM","TMUS","AMAT","INTU","ISRG","TXN","BKNG","TQQQ","SOXL",
+        "COIN","HOOD","MSTR","PLTR","MARA","RIOT","CLSK","IONQ","RGTI","SOUN",
+        "CRWD","PANW","DDOG","NET","SNOW","PLTR","ARM","SMCI","MU","INTC",
+        "JPM","V","MA","BAC","GS","PYPL","AFRM","SOFI","UPST",
+        "MRNA","BNTX","NVAX","LLY","PFE","JNJ","ABBV",
+        "ENPH","FSLR","NEE","VST","NRG",
+        "RKLB","JOBY","ACHR","LUNR","AXON","LHX","LMT","NOC","GD","RTX",
+        "DIS","SPOT","SNAP","RBLX","NTES","BIDU",
+        "UBER","DASH","ABNB","LYFT",
+        "LULU","NKE","ONON","CROX",
     ]
-    tickers = list(dict.fromkeys(tickers))
-    print(f"  미국 주요 종목: {len(tickers)}개 (상장 확인된 종목)")
-    return tickers
+    usa_tickers = list(dict.fromkeys(usa_tickers))
+    print(f"  미국 종목: {len(usa_tickers)}개")
 
-def get_kosdaq_tickers():
-    """KOSDAQ 전종목 리스트 가져오기"""
-    print("KOSDAQ 종목 리스트 수집중...")
+    # ── 한국 종목 (pykrx - 시총 상위 자동 추출) ──────────────────
+    kr_tickers = []
+    kr_names   = {}
     try:
-        df = fdr.StockListing('KOSDAQ')
-        # 종목코드에 .KQ 붙이기 (yfinance 형식)
-        tickers = []
-        names   = {}
-        for _, row in df.iterrows():
-            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
-            name = str(row.get('Name', row.get('ISU_ABBRV', code)))
-            sym  = f"{code}.KQ"
-            tickers.append(sym)
-            names[sym] = name
-        print(f"  KOSDAQ 종목: {len(tickers)}개")
-        return tickers, names
-    except Exception as e:
-        print(f"  KOSDAQ 리스트 오류: {e}")
-        return [], {}
+        from pykrx import stock as pykrx_stock
+        import datetime
+        today = datetime.datetime.now().strftime("%Y%m%d")
 
-def get_kospi_tickers():
-    """KOSPI 전종목 리스트 가져오기 (토스증권 지원)"""
-    print("KOSPI 종목 리스트 수집중...")
-    try:
-        df = fdr.StockListing('KOSPI')
-        tickers = []
-        names   = {}
-        for _, row in df.iterrows():
-            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
-            name = str(row.get('Name', row.get('ISU_ABBRV', code)))
+        # 코스피 상위 40개
+        df_kospi = pykrx_stock.get_market_cap_by_ticker(today, market="KOSPI")
+        for code in df_kospi.sort_values("시가총액", ascending=False).head(40).index:
             sym  = f"{code}.KS"
-            tickers.append(sym)
-            names[sym] = name
-        print(f"  KOSPI 종목: {len(tickers)}개")
-        return tickers, names
+            name = pykrx_stock.get_market_ticker_name(code)
+            kr_tickers.append(sym)
+            kr_names[sym] = name
+
+        # 코스닥 상위 10개
+        df_kosdaq = pykrx_stock.get_market_cap_by_ticker(today, market="KOSDAQ")
+        for code in df_kosdaq.sort_values("시가총액", ascending=False).head(10).index:
+            sym  = f"{code}.KQ"
+            name = pykrx_stock.get_market_ticker_name(code)
+            kr_tickers.append(sym)
+            kr_names[sym] = name
+
+        print(f"  한국 종목: {len(kr_tickers)}개 (pykrx 시총 상위)")
     except Exception as e:
-        print(f"  KOSPI 리스트 오류: {e}")
-        return [], {}
+        print(f"  ⚠️ pykrx 실패: {e} → 기본 종목 사용")
+        fallback = {"005930.KS":"삼성전자","000660.KS":"SK하이닉스",
+                    "005380.KS":"현대차","035420.KS":"NAVER","051910.KS":"LG화학"}
+        kr_tickers = list(fallback.keys())
+        kr_names   = fallback
+
+    return usa_tickers, kr_tickers, kr_names
 
 def calc_obv(close, volume):
     """OBV 벡터 계산"""
@@ -283,31 +255,21 @@ def run():
     kr_open = (weekday < 5) and is_kr_market_open(now_kst)
     if weekday >= 5:
         print("주말 - 한국장 스킵 (미국장은 계속 스캔)")
-    us_open = True  # 미국은 24시간 스캔
+
+    # ── 종목 로드 (1회) ──────────────────────────────────────────────
+    print("\n[종목 로드 중...]")
+    us_tickers, kr_tickers, kr_names = get_all_tickers()
 
     all_signals = []
 
-    # ── KOSPI + KOSDAQ 스캔 (한국장 09:00~15:30만) ──────────────────────────
+    # ── 한국장 스캔 (09:00~15:30만) ──────────────────────────────────
     if kr_open:
-        print("\n[KOSPI 전종목 스캔] (토스증권 지원)")
-        kospi_tickers, kospi_names = get_kospi_tickers()
+        print(f"\n[한국 종목 스캔] {len(kr_tickers)}개 (KOSPI+KOSDAQ 시총 상위)")
         for interval in INTERVALS:
             print(f"  {interval}봉 체크중...")
-            for i in range(0, len(kospi_tickers), BATCH_SIZE):
-                batch = kospi_tickers[i:i+BATCH_SIZE]
-                sigs  = check_batch(batch, "KR", kospi_names, interval)
-                if sigs:
-                    all_signals.extend(sigs)
-                    print(f"    신호: {[s['name'] for s in sigs]}")
-                time.sleep(0.5)
-
-        print("\n[KOSDAQ 전종목 스캔] (토스증권 지원)")
-        kosdaq_tickers, kosdaq_names = get_kosdaq_tickers()
-        for interval in INTERVALS:
-            print(f"  {interval}봉 체크중...")
-            for i in range(0, len(kosdaq_tickers), BATCH_SIZE):
-                batch = kosdaq_tickers[i:i+BATCH_SIZE]
-                sigs  = check_batch(batch, "KR", kosdaq_names, interval)
+            for i in range(0, len(kr_tickers), BATCH_SIZE):
+                batch = kr_tickers[i:i+BATCH_SIZE]
+                sigs  = check_batch(batch, "KR", kr_names, interval)
                 if sigs:
                     all_signals.extend(sigs)
                     print(f"    신호: {[s['name'] for s in sigs]}")
@@ -315,21 +277,20 @@ def run():
     else:
         print("\n[한국장] 장외시간 스킵 (09:00~15:30만 운영)")
 
-    # ── NASDAQ 스캔 (24시간 - 프리마켓/정규/애프터마켓) ──────────────────────────────────
-    print("\n[NASDAQ 전종목 스캔] (24시간)")
-    nasdaq_tickers = get_nasdaq_tickers()
-    nasdaq_names   = {t: t for t in nasdaq_tickers}
+    # ── 미국장 스캔 (24시간) ─────────────────────────────────────────
+    print(f"\n[미국 종목 스캔] {len(us_tickers)}개 (24시간)")
+    us_names = {t: t for t in us_tickers}
     for interval in INTERVALS:
         print(f"  {interval}봉 체크중...")
-        for i in range(0, len(nasdaq_tickers), BATCH_SIZE):
-            batch = nasdaq_tickers[i:i+BATCH_SIZE]
-            sigs  = check_batch(batch, "US", nasdaq_names, interval)
+        for i in range(0, len(us_tickers), BATCH_SIZE):
+            batch = us_tickers[i:i+BATCH_SIZE]
+            sigs  = check_batch(batch, "US", us_names, interval)
             if sigs:
                 all_signals.extend(sigs)
                 print(f"    신호: {[s['name'] for s in sigs]}")
             time.sleep(0.5)
 
-    # ── 중복 제거 (같은 종목 15m/30m 동시 신호) ──────
+    # ── 중복 제거 (같은 종목 15m/30m 동시 신호) ──────────────────────
     seen = set()
     unique_signals = []
     for s in all_signals:
