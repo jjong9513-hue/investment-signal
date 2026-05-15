@@ -205,9 +205,10 @@ def is_kr_market_open(now_kst):
     return (h == 9 and m >= 0) or (10 <= h <= 14) or (h == 15 and m <= 30)
 
 def is_us_market_open(now_kst):
-    """미국장 시간 체크 (22:30~05:00 KST)"""
+    """미국장+프리마켓+애프터마켓 체크 (05:00~09:00 애프터, 17:00~05:00 프리+정규)"""
     h = now_kst.hour
-    return h >= 22 or h < 5
+    # 정규장: 22:30~05:00 KST / 프리마켓: 17:00~22:30 KST / 애프터마켓: 05:00~09:00 KST
+    return True  # 24시간 - 데이터 없으면 자동으로 신호 없음
 
 def run():
     kst     = timezone(timedelta(hours=9))
@@ -222,15 +223,12 @@ def run():
         return
 
     kr_open = is_kr_market_open(now_kst)
-    us_open = is_us_market_open(now_kst)
-
-    if not kr_open and not us_open:
-        print("장외 시간 - 스킵")
-        return
+    # 미국은 24시간 스캔 (프리마켓/정규/애프터마켓 포함)
+    us_open = True
 
     all_signals = []
 
-    # ── KOSDAQ 스캔 ──────────────────────────────────
+    # ── KOSDAQ 스캔 (한국장 09:00~15:30만) ──────────────────────────────────
     if kr_open:
         print("\n[KOSDAQ 전종목 스캔]")
         kosdaq_tickers, kosdaq_names = get_kosdaq_tickers()
@@ -243,21 +241,22 @@ def run():
                     all_signals.extend(sigs)
                     print(f"    신호: {[s['name'] for s in sigs]}")
                 time.sleep(0.5)
+    else:
+        print("\n[KOSDAQ] 장외시간 스킵 (09:00~15:30만 운영)")
 
-    # ── NASDAQ 스캔 ──────────────────────────────────
-    if us_open:
-        print("\n[NASDAQ 전종목 스캔]")
-        nasdaq_tickers = get_nasdaq_tickers()
-        nasdaq_names   = {t: t for t in nasdaq_tickers}
-        for interval in INTERVALS:
-            print(f"  {interval}봉 체크중...")
-            for i in range(0, len(nasdaq_tickers), BATCH_SIZE):
-                batch = nasdaq_tickers[i:i+BATCH_SIZE]
-                sigs  = check_batch(batch, "US", nasdaq_names, interval)
-                if sigs:
-                    all_signals.extend(sigs)
-                    print(f"    신호: {[s['name'] for s in sigs]}")
-                time.sleep(0.5)
+    # ── NASDAQ 스캔 (24시간 - 프리마켓/정규/애프터마켓) ──────────────────────────────────
+    print("\n[NASDAQ 전종목 스캔] (24시간)")
+    nasdaq_tickers = get_nasdaq_tickers()
+    nasdaq_names   = {t: t for t in nasdaq_tickers}
+    for interval in INTERVALS:
+        print(f"  {interval}봉 체크중...")
+        for i in range(0, len(nasdaq_tickers), BATCH_SIZE):
+            batch = nasdaq_tickers[i:i+BATCH_SIZE]
+            sigs  = check_batch(batch, "US", nasdaq_names, interval)
+            if sigs:
+                all_signals.extend(sigs)
+                print(f"    신호: {[s['name'] for s in sigs]}")
+            time.sleep(0.5)
 
     # ── 중복 제거 (같은 종목 15m/30m 동시 신호) ──────
     seen = set()
