@@ -54,6 +54,19 @@ def get_all_tickers():
         "DIS","SPOT","SNAP","RBLX","NTES","BIDU",
         "UBER","DASH","ABNB","LYFT",
         "LULU","NKE","ONON","CROX",
+        # ── 밈/급등주 (스캘핑 특화) ──────────────────────────────────
+        # 밈주 클래식
+        "GME","AMC","BB","NOK",
+        # EV 밈
+        "RIVN","LCID","NKLA","FFIE","PSNY","WKHS",
+        # 중국 EV (변동성 극강)
+        "NIO","XPEV","LI",
+        # AI 밈
+        "BBAI","ASTS","RCAT","WOLF","OPEN",
+        # 레버리지 ETF (단타 필수템)
+        "TQQQ","SOXL","UVXY","LABU","FNGU","TNA","SPXL",
+        # 단타 바이오
+        "NVAX","SAVA","ACAD","SRPT","VKTX",
     ]
     usa_tickers = list(dict.fromkeys(usa_tickers))
     print(f"  미국 종목: {len(usa_tickers)}개")
