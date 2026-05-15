@@ -154,31 +154,25 @@ def calc_obv(close, volume):
     return (direction * volume).cumsum()
 
 def check_batch(tickers, market, name_map=None, interval="15m"):
-    """배치 단위로 돌파 조건 체크"""
+    """종목별 개별 다운로드로 돌파 조건 체크"""
     signals = []
-    try:
-        raw = yf.download(
-            tickers=" ".join(tickers),
-            interval=interval,
-            period="3d",
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-            threads=True,
-        )
-    except Exception as e:
-        print(f"    다운로드 오류: {e}")
-        return signals
 
     for sym in tickers:
         try:
-            # 멀티/싱글 티커 처리
-            if len(tickers) == 1:
-                df = raw
-            else:
-                if sym not in raw.columns.get_level_values(0):
-                    continue
-                df = raw[sym].dropna(how="all")
+            df = yf.download(
+                sym,
+                interval=interval,
+                period="3d",
+                auto_adjust=True,
+                progress=False,
+            )
+            if df is None or len(df) == 0:
+                continue
+            # 컬럼이 MultiIndex인 경우 단일 레벨로 변환
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df = df.dropna(how="all")
+            time.sleep(0.2)  # Rate limit 방지
 
             if df is None or len(df) < LOOKBACK + 3:
                 continue
