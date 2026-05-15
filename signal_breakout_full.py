@@ -59,54 +59,31 @@ def get_all_tickers():
     print(f"  미국 종목: {len(usa_tickers)}개")
 
     # ── 한국 종목 (pykrx - 시총 상위 자동 추출) ──────────────────
-    kr_tickers = []
-    kr_names   = {}
-    try:
-        from pykrx import stock as pykrx_stock
-        import datetime
-
-        # 마지막 거래일 계산 (주말이면 금요일로)
-        today = datetime.datetime.now()
-        wd = today.weekday()
-        if wd == 5:    # 토요일 → 금요일
-            today -= datetime.timedelta(days=1)
-        elif wd == 6:  # 일요일 → 금요일
-            today -= datetime.timedelta(days=2)
-        date_str = today.strftime("%Y%m%d")
-        print(f"  pykrx 기준일: {date_str}")
-
-        # 코스피 상위 40개
-        df_kospi = pykrx_stock.get_market_cap_by_ticker(date_str, market="KOSPI")
-        if df_kospi is None or df_kospi.empty or "시가총액" not in df_kospi.columns:
-            raise ValueError(f"KOSPI 데이터 없음 (date={date_str})")
-        for code in df_kospi.sort_values("시가총액", ascending=False).head(40).index:
-            sym  = f"{code}.KS"
-            name = pykrx_stock.get_market_ticker_name(code)
-            kr_tickers.append(sym)
-            kr_names[sym] = name
-
-        # 코스닥 상위 10개
-        df_kosdaq = pykrx_stock.get_market_cap_by_ticker(date_str, market="KOSDAQ")
-        if df_kosdaq is None or df_kosdaq.empty or "시가총액" not in df_kosdaq.columns:
-            raise ValueError(f"KOSDAQ 데이터 없음 (date={date_str})")
-        for code in df_kosdaq.sort_values("시가총액", ascending=False).head(10).index:
-            sym  = f"{code}.KQ"
-            name = pykrx_stock.get_market_ticker_name(code)
-            kr_tickers.append(sym)
-            kr_names[sym] = name
-
-        print(f"  한국 종목: {len(kr_tickers)}개 (pykrx 시총 상위)")
-    except Exception as e:
-        print(f"  ⚠️ pykrx 실패: {e} → 기본 종목 사용")
-        fallback = {
-            "005930.KS":"삼성전자", "000660.KS":"SK하이닉스", "005380.KS":"현대차",
-            "035420.KS":"NAVER",   "051910.KS":"LG화학",     "006400.KS":"삼성SDI",
-            "035720.KS":"카카오",   "003550.KS":"LG",         "028260.KS":"삼성물산",
-            "066570.KS":"LG전자",   "096770.KS":"SK이노베이션","017670.KS":"SK텔레콤",
-            "030200.KS":"KT",       "086790.KS":"하나금융지주","105560.KS":"KB금융",
-        }
-        kr_tickers = list(fallback.keys())
-        kr_names   = fallback
+    # ── 한국 종목 (시총 상위 하드코딩 - KOSPI 40 + KOSDAQ 10) ──────────
+    kr_names = {
+        # KOSPI 상위 40
+        "005930.KS":"삼성전자",   "000660.KS":"SK하이닉스",  "005380.KS":"현대차",
+        "005490.KS":"POSCO홀딩스","035420.KS":"NAVER",       "051910.KS":"LG화학",
+        "006400.KS":"삼성SDI",    "035720.KS":"카카오",       "000270.KS":"기아",
+        "003550.KS":"LG",         "028260.KS":"삼성물산",     "066570.KS":"LG전자",
+        "096770.KS":"SK이노베이션","017670.KS":"SK텔레콤",    "030200.KS":"KT",
+        "086790.KS":"하나금융지주","105560.KS":"KB금융",      "055550.KS":"신한지주",
+        "032830.KS":"삼성생명",    "018260.KS":"삼성에스디에스","009150.KS":"삼성전기",
+        "010950.KS":"S-Oil",       "011200.KS":"HMM",         "012330.KS":"현대모비스",
+        "034020.KS":"두산에너빌리티","316140.KS":"우리금융지주","024110.KS":"기업은행",
+        "000810.KS":"삼성화재",    "139480.KS":"이마트",       "090430.KS":"아모레퍼시픽",
+        "011070.KS":"LG이노텍",    "047050.KS":"포스코인터내셔널","003670.KS":"포스코퓨처엠",
+        "207940.KS":"삼성바이오로직스","068270.KS":"셀트리온",  "000100.KS":"유한양행",
+        "373220.KS":"LG에너지솔루션","267250.KS":"HD현대",     "042660.KS":"한화오션",
+        "329180.KS":"HD현대중공업", "009830.KS":"한화솔루션",
+        # KOSDAQ 상위 10
+        "247540.KQ":"에코프로비엠", "086520.KQ":"에코프로",    "196170.KQ":"알테오젠",
+        "058470.KQ":"리노공업",     "039030.KQ":"이오테크닉스", "357780.KQ":"솔브레인",
+        "145020.KQ":"휴젤",         "091990.KQ":"셀트리온헬스케어","263750.KQ":"펄어비스",
+        "122870.KQ":"와이지엔터테인먼트",
+    }
+    kr_tickers = list(kr_names.keys())
+    print(f"  한국 종목: {len(kr_tickers)}개 (KOSPI 40 + KOSDAQ 10)")
 
     return usa_tickers, kr_tickers, kr_names
 
