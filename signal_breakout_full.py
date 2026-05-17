@@ -246,10 +246,22 @@ def is_kr_market_open(now_kst):
     return (h == 9 and m >= 0) or (10 <= h <= 14) or (h == 15 and m <= 30)
 
 def is_us_market_open(now_kst):
-    """미국장+프리마켓+애프터마켓 체크 (05:00~09:00 애프터, 17:00~05:00 프리+정규)"""
-    h = now_kst.hour
-    # 정규장: 22:30~05:00 KST / 프리마켓: 17:00~22:30 KST / 애프터마켓: 05:00~09:00 KST
-    return True  # 24시간 - 데이터 없으면 자동으로 신호 없음
+    """미국장 운영 시간 체크 (KST 기준)
+    프리마켓:  월~금 17:00 ~ 22:30 KST
+    정규장:    월~금 22:30 ~ 05:00 KST (다음날)
+    애프터마켓: 화~토 05:00 ~ 09:00 KST
+    완전 휴장: 토 09:00 ~ 일 17:00 KST
+    """
+    weekday = now_kst.weekday()  # 0=월 ... 6=일
+    h, m    = now_kst.hour, now_kst.minute
+
+    # 토요일 09:00 이후 ~ 일요일 16:59 → 완전 휴장
+    if weekday == 5 and h >= 9:
+        return False
+    if weekday == 6 and h < 17:
+        return False
+
+    return True  # 그 외 시간은 프리/정규/애프터 운영
 
 def run():
     kst     = timezone(timedelta(hours=9))
@@ -259,10 +271,11 @@ def run():
 
     print(f"=== {now_str} 전종목 돌파 스캔 시작 ===")
 
-    # 주말에는 한국장만 스킵, 미국장은 24시간 운영
     kr_open = (weekday < 5) and is_kr_market_open(now_kst)
-    if weekday >= 5:
-        print("주말 - 한국장 스킵 (미국장은 계속 스캔)")
+    us_open = is_us_market_open(now_kst)
+
+    if not us_open:
+        print("주말 미국장 휴장 - 스킵 (토 09:00 ~ 일 17:00 KST)")
 
     # ── 종목 로드 (1회) ──────────────────────────────────────────────
     print("\n[종목 로드 중...]")
@@ -285,18 +298,23 @@ def run():
     else:
         print("\n[한국장] 장외시간 스킵 (09:00~15:30만 운영)")
 
-    # ── 미국장 스캔 (24시간) ─────────────────────────────────────────
-    print(f"\n[미국 종목 스캔] {len(us_tickers)}개 (24시간)")
+    # ── 미국장 스캔 (휴장 시간 제외) ────────────────────────────────────
+    if us_open:
+        print(f"\n[미국 종목 스캔] {len(us_tickers)}개")
+    else:
+        print("\n[미국장] 휴장 스킵")
+
     us_names = {t: t for t in us_tickers}
-    for interval in INTERVALS:
-        print(f"  {interval}봉 체크중...")
-        for i in range(0, len(us_tickers), BATCH_SIZE):
-            batch = us_tickers[i:i+BATCH_SIZE]
-            sigs  = check_batch(batch, "US", us_names, interval)
-            if sigs:
-                all_signals.extend(sigs)
-                print(f"    신호: {[s['name'] for s in sigs]}")
-            time.sleep(0.5)
+    if us_open:
+        for interval in INTERVALS:
+            print(f"  {interval}봉 체크중...")
+            for i in range(0, len(us_tickers), BATCH_SIZE):
+                batch = us_tickers[i:i+BATCH_SIZE]
+                sigs  = check_batch(batch, "US", us_names, interval)
+                if sigs:
+                    all_signals.extend(sigs)
+                    print(f"    신호: {[s['name'] for s in sigs]}")
+                time.sleep(0.5)
 
     # ── 중복 제거 (같은 종목 15m/30m 동시 신호) ──────────────────────
     seen = set()
