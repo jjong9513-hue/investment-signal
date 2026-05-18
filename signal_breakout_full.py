@@ -19,7 +19,7 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "936157775")
 LOOKBACK   = 15    # 기준 봉 수
 VOL_MULT   = 1.5   # 거래량 배수 기준
 OBV_PERIOD = 20    # OBV EMA 기간
-INTERVALS  = ["15m", "30m"]
+INTERVALS  = ["30m"]
 BATCH_SIZE = 50    # 한 번에 다운로드할 종목 수
 MAX_ALERTS = 10    # 한 번에 최대 알람 수 (너무 많으면 분할)
 
