@@ -215,28 +215,35 @@ def check_batch(tickers, market, name_map=None, interval="15m"):
     return signals
 
 def send_alerts(signals, interval, now_str):
-    """신호 텔레그램 발송 (최대 10개씩)"""
-    for i in range(0, len(signals), MAX_ALERTS):
-        chunk = signals[i:i+MAX_ALERTS]
-        flag_map = {"KR": "🇰🇷", "US": "🇺🇸"}
-        msg = f"<b>🚀 돌파 매수 신호!</b> [{interval}봉] ({now_str})\n"
-        msg += f"━━━━━━━━━━━━━━━━━\n"
-        msg += f"✅ 3가지 조건 모두 충족 종목\n\n"
+    """신호 텔레그램 발송 - 시장별 분리 (최대 10개씩)"""
+    kr_sigs = [s for s in signals if s["market"] == "KR"]
+    us_sigs = [s for s in signals if s["market"] == "US"]
 
-        for s in chunk:
-            flag  = flag_map.get(s["market"], "")
-            price = f"{s['price']:,.0f}원" if s["market"] == "KR" else f"${s['price']:.2f}"
-            high  = f"{s['high_15']:,.0f}원" if s["market"] == "KR" else f"${s['high_15']:.2f}"
-            accum = "🟢 매집구간" if s.get("is_accum") else ""
-            msg  += f"{flag} <b>{s['name']}</b> ({s['sym']}) {accum}\n"
-            msg  += f"  현재가: <b>{price}</b>\n"
-            msg  += f"  ✅ 돌파: {price} ↑ {high} (15봉 최고가)\n"
-            msg  += f"  ✅ 거래량: {s['vol_ratio']:.1f}배↑ (기준 {VOL_MULT}배)\n"
-            msg  += f"  ✅ OBV: EMA 상회\n"
-            msg  += f"  📊 RSI: {s.get('rsi', 0):.1f}\n\n"
+    for market, sigs in [("KR", kr_sigs), ("US", us_sigs)]:
+        if not sigs:
+            continue
+        for i in range(0, len(sigs), MAX_ALERTS):
+            chunk = sigs[i:i+MAX_ALERTS]
+            if market == "KR":
+                header = f"🇰🇷 <b>국내장 단타 적극추천!</b> [{interval}봉] ({now_str})"
+            else:
+                header = f"🇺🇸 <b>미국장 단타 적극추천!</b> [{interval}봉] ({now_str})"
 
-        msg += "⚡ 손절선 설정 필수! ⚠️ 투자 책임은 본인에게 있습니다."
-        ok = send(msg)
+            msg  = f"{header}\n"
+            msg += f"━━━━━━━━━━━━━━━━━\n\n"
+
+            for s in chunk:
+                price = f"{s['price']:,.0f}원" if market == "KR" else f"${s['price']:.2f}"
+                high  = f"{s['high_15']:,.0f}원" if market == "KR" else f"${s['high_15']:.2f}"
+                accum = " 🟢매집" if s.get("is_accum") else ""
+                msg  += f"<b>{s['name']}</b> ({s['sym']}){accum}\n"
+                msg  += f"  💰 현재가: <b>{price}</b>\n"
+                msg  += f"  ✅ 돌파: {high} 돌파\n"
+                msg  += f"  🔥 거래량: {s['vol_ratio']:.1f}배↑\n"
+                msg  += f"  📊 RSI: {s.get('rsi', 0):.1f}\n\n"
+
+            msg += "⚡ 손절선 설정 필수! ⚠️ 투자 책임은 본인에게 있습니다."
+            ok = send(msg)
         print(f"  알람 전송 {'OK' if ok else 'FAIL'}: {[s['name'] for s in chunk]}")
         time.sleep(1)
 
@@ -328,12 +335,15 @@ def run():
     print(f"\n총 신호: {len(unique_signals)}개")
 
     if not unique_signals:
-        print("신호 없음")
+        print("신호 없음 - 알람 미발송")
         return
 
-    # 신호 로그만 출력 (알람 미발송)
-    for s in unique_signals:
-        print(f"  신호: {s['name']} ({s['sym']}) | {s['interval']} | {s['price']}")
+    # 봉 단위별 알람 발송
+    for interval in INTERVALS:
+        sigs = [s for s in unique_signals if s["interval"] == interval]
+        if sigs:
+            send_alerts(sigs, interval, now_str)
+            print(f"  알람 발송: {[s['name'] for s in sigs]}")
 
     print("=== 스캔 완료 ===")
 
