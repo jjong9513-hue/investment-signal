@@ -328,14 +328,12 @@ def run():
     print(f"\n총 신호: {len(unique_signals)}개")
 
     if not unique_signals:
-        print("신호 없음 - 알람 미발송")
+        print("신호 없음")
         return
 
-    # 15분봉 / 30분봉 분리해서 발송
-    for interval in INTERVALS:
-        sigs = [s for s in unique_signals if s["interval"] == interval]
-        if sigs:
-            send_alerts(sigs, interval, now_str)
+    # 신호 로그만 출력 (알람 미발송)
+    for s in unique_signals:
+        print(f"  신호: {s['name']} ({s['sym']}) | {s['interval']} | {s['price']}")
 
     print("=== 스캔 완료 ===")
 
