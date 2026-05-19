@@ -189,18 +189,21 @@ def format_message(results, market, date_str):
 
 # ── 메인 루프 ─────────────────────────────────────────
 def run():
-    kr_sent_today = None
-    us_sent_today = None
+    kr_sent_today  = None
+    us_sent_today1 = None  # 16:30 KST (오후 예고)
+    us_sent_today2 = None  # 22:20 KST (장 시작 10분 전)
 
     print("=== 단타 추천 스캐너 시작 ===")
+    print("  한국장: 매일 08:50 KST")
+    print("  미국장: 매일 16:30 KST + 22:20 KST")
 
     while True:
-        now     = datetime.now(KST)
-        weekday = now.weekday()
+        now      = datetime.now(KST)
+        weekday  = now.weekday()
         date_str = now.strftime("%Y-%m-%d")
-        h, m    = now.hour, now.minute
+        h, m     = now.hour, now.minute
 
-        # ── 한국장: 평일 08:50 KST 발송 ──────────────
+        # ── 한국장: 평일 08:50 KST ────────────────────
         if weekday < 5 and h == 8 and m == 50 and kr_sent_today != date_str:
             print(f"\n[{now.strftime('%H:%M')}] 한국장 단타 추천 발송 시작")
             results = scan_kr()
@@ -210,15 +213,25 @@ def run():
                 print(f"  한국장 알람 {'OK' if ok else 'FAIL'}")
             kr_sent_today = date_str
 
-        # ── 미국장: 평일 22:20 KST 발송 ──────────────
-        if weekday < 5 and h == 22 and m == 20 and us_sent_today != date_str:
-            print(f"\n[{now.strftime('%H:%M')}] 미국장 단타 추천 발송 시작")
+        # ── 미국장 1차: 평일 16:30 KST (오후 예고) ────
+        if weekday < 5 and h == 16 and m == 30 and us_sent_today1 != date_str:
+            print(f"\n[{now.strftime('%H:%M')}] 미국장 단타 추천 1차 발송 시작")
             results = scan_us()
             if results:
-                msg = format_message(results, "US", date_str)
+                msg = "📋 <b>미국장 오후 예고</b>\n" + format_message(results, "US", date_str)
                 ok  = send(msg)
-                print(f"  미국장 알람 {'OK' if ok else 'FAIL'}")
-            us_sent_today = date_str
+                print(f"  미국장 1차 알람 {'OK' if ok else 'FAIL'}")
+            us_sent_today1 = date_str
+
+        # ── 미국장 2차: 평일 22:20 KST (장 시작 10분 전) ──
+        if weekday < 5 and h == 22 and m == 20 and us_sent_today2 != date_str:
+            print(f"\n[{now.strftime('%H:%M')}] 미국장 단타 추천 2차 발송 시작")
+            results = scan_us()
+            if results:
+                msg = "🔔 <b>미국장 시작 10분 전!</b>\n" + format_message(results, "US", date_str)
+                ok  = send(msg)
+                print(f"  미국장 2차 알람 {'OK' if ok else 'FAIL'}")
+            us_sent_today2 = date_str
 
         time.sleep(60)  # 1분마다 체크
 
